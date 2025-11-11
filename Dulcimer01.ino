@@ -1,14 +1,10 @@
+#include <WiFi.h>
+#include <esp_now.h>
 #include <Wire.h>
 #include <Adafruit_SSD1306.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
-#include <SPI.h>
-#include <MFRC522.h>
 #include <Adafruit_NeoPixel.h>
-#include "BluetoothSerial.h"
-
-//Bluetooth
-BluetoothSerial SerialBT;
 
 // NeoPixel
 #define NEOPIXEL_PIN 15
@@ -24,11 +20,6 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // MPU6050
 Adafruit_MPU6050 mpu;
 
-// RFID RC522
-#define RST_PIN         4
-#define SS_PIN          5
-MFRC522 rfid(SS_PIN, RST_PIN);
-
 // Botón
 #define BUTTON_PIN      2
 
@@ -37,29 +28,25 @@ MFRC522 rfid(SS_PIN, RST_PIN);
 #define JOY_X_PIN       36
 #define JOY_Y_PIN       39
 
+// MAC del esclavo ---- ESPCAM
+uint8_t receptorAddress[] = {0xC0, 0x49, 0xEF, 0xE4, 0xAD, 0x78}; 
+
 String menu[] = {
   "wifi",
-  "bluetooth",
+  "Pruevas Gimbal",
   "pageWeb",
-  "server",
-  "doom",
-  "controller",
-  "config",
-  "ID RFDI",
 };
 
 int item = 0;
 bool Menu = true;
 
+int brillo = 0;
+
 void setup() {
   delay(1000);
   Serial.begin(115200);
 
-  //BLUETOOTH
-  if (!SerialBT.begin("ESP32_Controlador", true, true)) {  // true = modo maestro
-    Serial.println("Error al iniciar Bluetooth");
-    while (true);
-  }
+  WiFi.mode(WIFI_STA);
 
   // OLED
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -77,14 +64,21 @@ void setup() {
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
 
-  // RFID
-  SPI.begin();
-  rfid.PCD_Init();
-
   // Botón y joystick
   pinMode(BUTTON_PIN, INPUT_PULLDOWN);
   pinMode(JOY_BUTTON_PIN, INPUT_PULLUP);  // el joystick está normalmente alto
 
+  // ESP NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error iniciando ESP-NOW");
+    return;
+  }
+
+  esp_now_peer_info_t peer = {};
+  memcpy(peer.peer_addr, receptorAddress, 6);
+  esp_now_add_peer(&peer);
+
+  //Config I2C OLED
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
 
@@ -100,7 +94,10 @@ void setup() {
 }
 
 void loop() {
+
   display.clearDisplay();
+
+  String direcction = joystick();
 
   if(digitalRead(JOY_BUTTON_PIN)== LOW){
     Menu = !Menu;
@@ -109,7 +106,6 @@ void loop() {
   }
 
   if(Menu == true){
-    String direcction = joystick();
     int menuSize = sizeof(menu) / sizeof(menu[0]);
 
     if(direcction == "derecha"){
@@ -120,7 +116,7 @@ void loop() {
       item--;
       if (item < 0) item = menuSize - 1;
     };
-    TextOled(0,25,2,String(menu[item]));
+    TextOled(0,0,2,String(menu[item]));
     TextOled(53, 56, 1, String(item + 1) + "/" + String(menuSize)); 
     display.display();
     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
@@ -136,44 +132,31 @@ void loop() {
     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
     pixels.show();
   };
+  //////////////////////////////////////////////////////////////////////////////////////
+
   if (item == 1 && Menu == false) {
-    TextOled(0,0,2, "Se logro!!, este es el bluetooth");
+
+    TextOled(0,0,2, "value:"+ String(brillo));
+    Serial.println(brillo);
+
+    if(direcction == "derecha"){
+      brillo = brillo + 409;
+      if (brillo > 4095) brillo = 4095;
+    };
+    if(direcction == "izquierda"){
+      brillo = brillo - 409;
+      if (brillo <= 0) brillo = 1;
+    };
+
+    esp_now_send(receptorAddress, (uint8_t*)&brillo, sizeof(brillo));  // Enviar valor
+    Serial.println("Enviado: " + String(brillo));
+    delay(100); // cada medio segundo
     display.display();
-    pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-    pixels.show();
   };
+  /////////////////////////////////////////////////////////////////////////////////////////
+
   if(item == 2 && Menu == false){
     TextOled(0,0,2, "Se logro!!, este es el pageWeb");
-    display.display();
-    pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-    pixels.show();
-  };
-  if(item == 3 && Menu == false){
-    TextOled(0,0,2, "Se logro!!, este es el server");
-    display.display();
-    pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-    pixels.show();
-  };
-  if(item == 4 && Menu == false){
-    TextOled(0,0,2, "Se logro!!, este es el doom");
-    display.display();
-    pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-    pixels.show();
-  };
-  if(item == 5 && Menu == false){
-    TextOled(0,0,2, "Se logro!!, este es el controller");
-    display.display();
-    pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-    pixels.show();
-  };
-  if(item == 6 && Menu == false){
-    TextOled(0,0,2, "Se logro!!, este es el config");
-    display.display();
-    pixels.setPixelColor(0, pixels.Color(0, 0, 255));
-    pixels.show();
-  };
-  if(item == 7 && Menu == false){
-    TextOled(0,0,2, "Se logro!!, este es el ID RFDI");
     display.display();
     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
     pixels.show();
