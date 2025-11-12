@@ -29,7 +29,7 @@ Adafruit_MPU6050 mpu;
 #define JOY_Y_PIN       39
 
 // MAC del esclavo ---- ESPCAM
-uint8_t receptorAddress[] = {0xC0, 0x49, 0xEF, 0xE4, 0xAD, 0x78}; 
+uint8_t receptorAddress[] = {0x08, 0xD1, 0xF9, 0x99, 0x34, 0xA8}; //08:D1:F9:99:34:A8 // esp test 0xC0, 0x49, 0xEF, 0xE4, 0xAD, 0x78
 
 String menu[] = {
   "wifi",
@@ -37,10 +37,15 @@ String menu[] = {
   "pageWeb",
 };
 
+struct Datos {
+  int valor1;
+  int valor2;
+};
+
+Datos datos;
+
 int item = 0;
 bool Menu = true;
-
-int brillo = 0;
 
 void setup() {
   delay(1000);
@@ -127,7 +132,7 @@ void loop() {
 
   //menu
   if(item == 0 && Menu == false){
-    TextOled(0,0,2, "Se logro!!, este es el wifi");
+    TextOled(0,0,2, "Este es el wifi");
     display.display();
     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
     pixels.show();
@@ -136,27 +141,21 @@ void loop() {
 
   if (item == 1 && Menu == false) {
 
-    TextOled(0,0,2, "value:"+ String(brillo));
-    Serial.println(brillo);
+    datos.valor1 = analogRead(JOY_Y_PIN);
+    datos.valor2 = analogRead(JOY_X_PIN);
 
-    if(direcction == "derecha"){
-      brillo = brillo + 409;
-      if (brillo > 4095) brillo = 4095;
-    };
-    if(direcction == "izquierda"){
-      brillo = brillo - 409;
-      if (brillo <= 0) brillo = 1;
-    };
+    TextOled(0,0,2, "y:"+ String(datos.valor1));
+    TextOled(0,17,2, "x:"+ String(datos.valor2));
 
-    esp_now_send(receptorAddress, (uint8_t*)&brillo, sizeof(brillo));  // Enviar valor
-    Serial.println("Enviado: " + String(brillo));
-    delay(100); // cada medio segundo
+
+    esp_now_send(receptorAddress, (uint8_t*)&datos, sizeof(datos));
+    delay(10); // cada medio segundo
     display.display();
   };
   /////////////////////////////////////////////////////////////////////////////////////////
 
   if(item == 2 && Menu == false){
-    TextOled(0,0,2, "Se logro!!, este es el pageWeb");
+    TextOled(0,0,2, "Este es el pageWeb");
     display.display();
     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
     pixels.show();
